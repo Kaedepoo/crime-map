@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>東京都 犯罪発生マップ 2025–2026</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js"></script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Helvetica Neue',sans-serif; background:#0e1118; color:#dde; height:100vh; display:flex; flex-direction:column; overflow:hidden; }
+
+header {
+  background:#0e1118;
+  border-bottom:1px solid #1c2030;
+  padding:14px 20px;
+  display:flex; align-items:center; gap:16px; flex-wrap:wrap;
+  z-index:1000; flex-shrink:0;
+}
+.logo { font-size:16px; font-weight:800; letter-spacing:.15em; text-transform:uppercase; color:#ff3b4e; white-space:nowrap; }
+.logo span { color:#778; font-weight:400; }
+
+.search-box {
+  display:flex; align-items:center; gap:8px;
+  background:#161a27; border:1px solid #252a3a;
+  border-radius:4px; padding:4px 10px;
+  position:relative;
+}
+.search-box input {
+  background:transparent; border:none; outline:none;
+  color:#ccd; font-size:14px; width:280px;
+}
+.search-box input::placeholder { color:#445; }
+.search-box button {
+  background:#ff3b4e22; border:1px solid #ff3b4e66;
+  color:#ff3b4e; font-size:13px; font-weight:700;
+  padding:4px 12px; border-radius:3px; cursor:pointer;
+  white-space:nowrap; transition:background .15s;
+}
+.search-box button:hover { background:#ff3b4e44; }
+#addrError {
+  position:absolute; top:calc(100% + 6px); left:0;
+  background:#1a0a0e; border:1px solid #ff3b4e66;
+  color:#ff6b7a; font-size:12px; padding:6px 10px;
+  border-radius:4px; white-space:nowrap; display:none; z-index:2000;
+}
+
+.filters { display:flex; gap:8px; flex-wrap:wrap; flex:1; }
+select {
+  background:#161a27; border:1px solid #252a3a; color:#ccd;
+  padding:7px 14px; border-radius:4px; font-size:14px; cursor:pointer;
+  appearance:none; transition:border-color .15s;
+}
+select:hover { border-color:#ff3b4e; color:#fff; }
+
+.stats { display:flex; gap:14px; margin-left:auto; }
+.stat { text-align:right; }
+.stat-v { font-size:22px; font-weight:700; color:#ff3b4e; font-variant-numeric:tabular-nums; }
+.stat-l { font-size:11px; color:#556; letter-spacing:.1em; text-transform:uppercase; }
+
+#map { flex:1; }
+
+/* ポップアップ */
+.leaflet-popup-content-wrapper { background:#0e1118; border:1px solid #252a3a; border-radius:6px; box-shadow:0 4px 20px #000c; color:#ccd; font-size:13px; padding:0; }
+.leaflet-popup-content { margin:12px 14px; }
+.leaflet-popup-tip { background:#0e1118; }
+.popup-kind { font-weight:700; color:#ff3b4e; margin-bottom:4px; font-size:14px; }
+.popup-addr { color:#99a; font-size:13px; }
+.popup-date { color:#667; font-size:12px; margin-top:2px; }
+
+/* 凡例 */
+.legend {
+  position:absolute; bottom:28px; right:10px;
+  background:rgba(14,17,24,.9); border:1px solid #1c2030;
+  border-radius:6px; padding:12px 14px; z-index:900; font-size:11px; min-width:150px;
+}
+.legend-title { font-size:11px; text-transform:uppercase; letter-spacing:.12em; color:#556; margin-bottom:8px; }
+.legend-bar { height:8px; border-radius:3px; background:linear-gradient(to right,#1a47ff88,#00e5ff88,#00ff8888,#ffee0099,#ff3b4e); margin-bottom:5px; }
+.legend-labels { display:flex; justify-content:space-between; color:#556; font-size:12px; }
+.legend-kinds { margin-top:10px; border-top:1px solid #1c2030; padding-top:8px; }
+.lk { display:flex; align-items:center; gap:6px; margin-top:5px; font-size:12px; color:#99a; cursor:pointer; }
+.lk:hover { color:#ccd; }
+.lk-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+
+/* 情報パネル */
+.info {
+  position:absolute; top:62px; left:10px;
+  background:rgba(14,17,24,.9); border:1px solid #1c2030;
+  border-radius:6px; padding:10px 12px; z-index:900; font-size:13px;
+  max-width:200px; line-height:1.65; color:#778;
+}
+.info strong { color:#ccd; }
+.data-src { font-size:11px; color:#445; margin-top:6px; padding-top:6px; border-top:1px solid #1c2030; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Tokyo Crime<span> Map</span></div>
+  <div class="filters">
+    <select id="kindSel">
+      <option value="all">すべての種別</option>
+      <option value="声かけ・不審者">声かけ・不審者</option>
+      <option value="子供への声かけ">子供への声かけ</option>
+      <option value="わいせつ">わいせつ</option>
+      <option value="強盗">強盗</option>
+      <option value="ひったくり">ひったくり</option>
+      <option value="詐欺">詐欺</option>
+      <option value="その他">その他</option>
+    </select>
+    <select id="monthSel">
+      <option value="all">全期間</option>
+      <option value="2025-01">2025年1月</option>
+      <option value="2025-02">2月</option>
+      <option value="2025-03">3月</option>
+      <option value="2025-04">4月</option>
+      <option value="2025-05">5月</option>
+      <option value="2025-06">6月</option>
+      <option value="2025-07">7月</option>
+      <option value="2025-08">8月</option>
+      <option value="2025-09">9月</option>
+      <option value="2025-10">10月</option>
+      <option value="2025-11">11月</option>
+      <option value="2025-12">12月</option>
+      <option value="2026-01">2026年1月</option>
+      <option value="2026-02">2月</option>
+      <option value="2026-03">3月</option>
+      <option value="2026-04">4月</option>
+      <option value="2026-05">5月</option>
+      <option value="2026-06">6月</option>
+    </select>
+    <select id="modeSel">
+      <option value="heat">ヒートマップ</option>
+      <option value="dot">ドット表示</option>
+    </select>
+  </div>
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-v" id="cntV">—</div>
+      <div class="stat-l">表示件数</div>
+    </div>
+  </div>
+  <div class="search-box">
+    <input type="text" id="addrInput" placeholder="住所を入力（例：新宿区歌舞伎町1丁目）" autocomplete="off">
+    <button id="addrBtn">移動</button>
+    <div id="addrError"></div>
+  </div>
+</header>
+
+<div style="position:relative;flex:1;display:flex;flex-direction:column;">
+  <div id="map"></div>
+
+  <div class="info">
+    <strong>メールけいしちょう</strong><br>
+    オープンデータより<br>3,321件を表示<br>
+    （2025/1〜2026/6）
+    <div class="data-src">
+      出典：警視庁 メールけいしちょう<br>
+      オープンデータ（CC BY 4.0）<br>
+      ※座標は丁目単位の推定値
+    </div>
+  </div>
+
+  <div class="legend">
+    <div class="legend-title">発生密度</div>
+    <div class="legend-bar"></div>
+    <div class="legend-labels"><span>低</span><span>高</span></div>
+    <div class="legend-kinds" id="legendKinds"></div>
+  </div>
+</div>
+
+<script>
+let CRIME_DATA = [];
+// data.jsonを非同期読み込み
+fetch('data.json')
+  .then(r => r.json())
+  .then(d => { CRIME_DATA = d; applyFilters(); })
+  .catch(e => console.error('データ読み込み失敗', e));
+
+const KIND_COLORS = {
+  '声かけ・不審者': '#ff9500',
+  '子供への声かけ': '#ffcc00',
+  'わいせつ':      '#ff3b4e',
+  '強盗':          '#cc00ff',
+  'ひったくり':    '#00aaff',
+  '詐欺':          '#00e5c8',
+  'その他':        '#778899',
+};
+
+// 地図初期化
+const map = L.map('map', {zoomControl:false}).setView([35.689, 139.692], 12);
+L.control.zoom({position:'bottomleft'}).addTo(map);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  attribution:'© OpenStreetMap © CARTO', maxZoom:19
+}).addTo(map);
+
+// 線路をOverpass APIからGeoJSONで取得してSVGで白描画
+async function loadRailways() {
+  // 東京都全域の鉄道路線をOverpass APIで取得
+  const query = `
+    [out:json][timeout:30];
+    (
+      way["railway"~"rail|subway|tram|light_rail|monorail"](35.5,138.9,35.95,139.95);
+    );
+    out geom;
+  `;
+  try {
+    const res = await fetch('https://overpass-api.de/api/interpreter', {
+      method:'POST', body:'data=' + encodeURIComponent(query)
+    });
+    const data = await res.json();
+
+    // OverpassのWayをLeaflet polylineに変換
+    const lines = [];
+    for (const el of data.elements) {
+      if (el.type === 'way' && el.geometry) {
+        const latlngs = el.geometry.map(p => [p.lat, p.lon]);
+        lines.push(latlngs);
+      }
+    }
+
+    // まとめてpolicylayerとして追加
+    const railGroup = L.layerGroup();
+    for (const ll of lines) {
+      L.polyline(ll, {
+        color: '#ffffff',
+        weight: 2,
+        opacity: 0.9
+      }).addTo(railGroup);
+    }
+    railGroup.addTo(map);
+    console.log(`線路 ${lines.length} 本描画完了`);
+  } catch(e) {
+    console.warn('線路データ取得失敗:', e);
+  }
+}
+loadRailways();
+
+// 凡例
+const lk = document.getElementById('legendKinds');
+Object.entries(KIND_COLORS).forEach(([k,c]) => {
+  const d = document.createElement('div');
+  d.className='lk';
+  d.innerHTML=`<div class="lk-dot" style="background:${c}"></div>${k}`;
+  lk.appendChild(d);
+});
+
+let heatLayer = null;
+let dotLayer  = null;
+
+let currentData = [];
+
+function render(data) {
+  currentData = data;
+  const mode = document.getElementById('modeSel').value;
+  if (heatLayer) { map.removeLayer(heatLayer); heatLayer=null; }
+  if (dotLayer)  { map.removeLayer(dotLayer);  dotLayer=null;  }
+
+  document.getElementById('cntV').textContent = data.length.toLocaleString();
+
+  if (mode === 'heat') {
+    const pts = data.map(d => [d.lat, d.lng, 0.7]);
+    heatLayer = L.heatLayer(pts, {
+      radius:26, blur:20, maxZoom:15, minOpacity:0.0,
+      gradient:{0.2:'#1a47ff', 0.45:'#00e5ff', 0.65:'#00ff88', 0.82:'#ffee00', 1:'#ff3b4e'}
+    }).addTo(map);
+  } else {
+    const markers = data.map(d => {
+      const c = KIND_COLORS[d.k] || '#778899';
+      const m = L.circleMarker([d.lat, d.lng], {
+        radius:5, color:'transparent', fillColor:c, fillOpacity:0.75, weight:0
+      });
+      m.bindPopup(`<div class="popup-kind">${d.k}</div><div class="popup-addr">${d.a}</div><div class="popup-date">${d.d}</div>`);
+      return m;
+    });
+    dotLayer = L.layerGroup(markers).addTo(map);
+  }
+}
+
+// ヒートマップクリック → 近隣件数をポップアップ表示
+map.on('click', function(e) {
+  const mode = document.getElementById('modeSel').value;
+  if (mode !== 'heat') return; // ドット表示時はLeaflet側のポップアップに任せる
+
+  const { lat, lng } = e.latlng;
+  const zoom = map.getZoom();
+
+  // ズームに応じた検索半径（km）
+  const radiusKm = zoom >= 15 ? 0.3 : zoom >= 13 ? 0.6 : zoom >= 11 ? 1.2 : 2.5;
+
+  // 近隣の件数をフィルタ
+  function dist(a, b, c, d) {
+    const R = 6371;
+    const dLat = (c - a) * Math.PI / 180;
+    const dLng = (d - b) * Math.PI / 180;
+    const x = Math.sin(dLat/2)**2 + Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dLng/2)**2;
+    return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1-x));
+  }
+
+  const nearby = currentData.filter(d => dist(lat, lng, d.lat, d.lng) <= radiusKm);
+
+  if (nearby.length === 0) {
+    L.popup().setLatLng(e.latlng)
+      .setContent('<div style="color:#ccd;font-size:13px;padding:4px">この周辺のデータなし</div>')
+      .openOn(map);
+    return;
+  }
+
+  // 種別集計
+  const kindCount = {};
+  nearby.forEach(d => { kindCount[d.k] = (kindCount[d.k]||0)+1; });
+  const sorted = Object.entries(kindCount).sort((a,b) => b[1]-a[1]);
+
+  // 直近5件
+  const recent = [...nearby].sort((a,b) => b.d.localeCompare(a.d)).slice(0, 5);
+
+  const kindRows = sorted.map(([k,n]) => {
+    const c = KIND_COLORS[k] || '#778899';
+    return `<div style="display:flex;align-items:center;gap:6px;margin:3px 0">
+      <div style="width:8px;height:8px;border-radius:50%;background:${c};flex-shrink:0"></div>
+      <span style="color:#ccd;font-size:13px">${k}</span>
+      <span style="color:#ff3b4e;font-weight:700;font-size:14px;margin-left:auto">${n}件</span>
+    </div>`;
+  }).join('');
+
+  const recentRows = recent.map(d =>
+    `<div style="font-size:12px;color:#889;margin:3px 0;border-left:2px solid ${KIND_COLORS[d.k]||'#445'};padding-left:5px">
+      <span style="color:#aab">${d.a}</span>　<span style="color:#556">${d.d}</span>
+    </div>`
+  ).join('');
+
+  const content = `
+    <div style="min-width:200px">
+      <div style="font-size:12px;color:#778;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px">
+        半径 ${radiusKm<1?radiusKm*1000+'m':radiusKm+'km'} 以内 — <span style="color:#ff3b4e;font-size:15px;font-weight:700">${nearby.length}</span> 件
+      </div>
+      ${kindRows}
+      <div style="margin-top:8px;padding-top:8px;border-top:1px solid #1e2230;font-size:12px;color:#667;letter-spacing:.05em">直近の発生</div>
+      <div style="margin-top:4px">${recentRows}</div>
+    </div>`;
+
+  L.popup({ maxWidth: 280 })
+    .setLatLng(e.latlng)
+    .setContent(content)
+    .openOn(map);
+});
+
+function applyFilters() {
+  const kind  = document.getElementById('kindSel').value;
+  const month = document.getElementById('monthSel').value;
+  let filtered = CRIME_DATA;
+  if (kind  !== 'all') filtered = filtered.filter(d => d.k === kind);
+  if (month !== 'all') filtered = filtered.filter(d => d.d.startsWith(month));
+  render(filtered);
+}
+
+['kindSel','monthSel','modeSel'].forEach(id =>
+  document.getElementById(id).addEventListener('change', applyFilters)
+);
+
+// 住所検索（国土地理院ジオコーダ）
+async function searchAddress() {
+  const q = document.getElementById('addrInput').value.trim();
+  const errEl = document.getElementById('addrError');
+  if (!q) return;
+  errEl.style.display = 'none';
+
+  // クエリはそのまま（または「東京都」補完なしで検索）して結果を座標フィルタ
+  // まず入力値だけで検索し、東京都外なら「東京都 + 入力値」で再検索
+  const query = q;
+
+  try {
+    const res = await fetch(
+      'https://msearch.gsi.go.jp/address-search/AddressSearch?q=' + encodeURIComponent(query)
+    );
+    const data = await res.json();
+
+    if (!data || data.length === 0) {
+      errEl.textContent = '「' + q + '」は見つかりませんでした';
+      errEl.style.display = 'block';
+      return;
+    }
+
+    // 東京都の範囲内（緯度35.4〜35.95、経度138.9〜139.95）の結果を優先
+    const TOKYO = r => {
+      const [lo, la] = r.geometry.coordinates;
+      return la > 35.4 && la < 35.95 && lo > 138.9 && lo < 139.95;
+    };
+
+    let result = data.find(TOKYO);
+
+    // 東京都内の結果がなければ「東京都 ＋ 入力値」で再検索
+    if (!result) {
+      const res2 = await fetch(
+        'https://msearch.gsi.go.jp/address-search/AddressSearch?q=' + encodeURIComponent('東京都' + q)
+      );
+      const data2 = await res2.json();
+      result = (data2 || []).find(TOKYO);
+    }
+
+    if (!result) {
+      errEl.textContent = '東京都内で「' + q + '」が見つかりませんでした';
+      errEl.style.display = 'block';
+      return;
+    }
+
+    const [lng, lat] = result.geometry.coordinates;
+    const name = result.properties.title;
+    map.setView([lat, lng], 15, { animate: true });
+
+    // 赤丸マーカーを5秒表示
+    const marker = L.circleMarker([lat, lng], {
+      radius: 12, color: '#ff3b4e', fillColor: '#ff3b4e',
+      fillOpacity: 0.25, weight: 2.5
+    }).addTo(map);
+    marker.bindPopup(`<div class="popup-kind">${name}</div>`).openPopup();
+    setTimeout(() => map.removeLayer(marker), 5000);
+
+  } catch(e) {
+    errEl.textContent = 'エラーが発生しました';
+    errEl.style.display = 'block';
+  }
+}
+
+document.getElementById('addrBtn').addEventListener('click', searchAddress);
+document.getElementById('addrInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') searchAddress();
+  document.getElementById('addrError').style.display = 'none';
+});
+</script>
+</body>
+</html>
