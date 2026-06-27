@@ -92,6 +92,36 @@ select:hover { border-color:#ff3b4e; color:#fff; }
 }
 .info strong { color:#ccd; }
 .data-src { font-size:11px; color:#445; margin-top:6px; padding-top:6px; border-top:1px solid #1c2030; }
+
+/* スマホ：折りたたみボタン */
+.panel-toggle {
+  display:none;
+  position:fixed; z-index:1001;
+  background:rgba(14,17,24,.92); border:1px solid #252a3a;
+  border-radius:50%; width:40px; height:40px;
+  align-items:center; justify-content:center;
+  font-size:16px; cursor:pointer; color:#ccd;
+  box-shadow:0 2px 8px #000a;
+}
+.panel-toggle:active { background:#1a1d2e; }
+#toggleInfo   { bottom:80px; left:10px; }
+#toggleLegend { bottom:28px; right:10px; }
+
+@media (max-width: 600px) {
+  .panel-toggle { display:flex; }
+  .info, .legend {
+    transition: opacity .2s, transform .2s;
+  }
+  .info.hidden, .legend.hidden {
+    opacity:0; pointer-events:none; transform:scale(0.92);
+  }
+  .info {
+    top:auto; bottom:130px; left:10px; max-width:180px; font-size:12px;
+  }
+  .legend {
+    bottom:130px; right:10px; font-size:11px;
+  }
+}
 </style>
 </head>
 <body>
@@ -150,6 +180,10 @@ select:hover { border-color:#ff3b4e; color:#fff; }
 
 <div style="position:relative;flex:1;display:flex;flex-direction:column;">
   <div id="map"></div>
+
+  <!-- スマホ用トグルボタン -->
+  <div class="panel-toggle" id="toggleInfo"  title="情報">ℹ</div>
+  <div class="panel-toggle" id="toggleLegend" title="凡例">▲</div>
 
   <div class="info">
     <strong>メールけいしちょう</strong><br>
@@ -358,6 +392,18 @@ function applyFilters() {
 ['kindSel','monthSel','modeSel'].forEach(id =>
   document.getElementById(id).addEventListener('change', applyFilters)
 );
+
+// スマホ用パネル折りたたみ
+document.getElementById('toggleInfo').addEventListener('click', function() {
+  const el = document.querySelector('.info');
+  el.classList.toggle('hidden');
+  this.textContent = el.classList.contains('hidden') ? '📋' : 'ℹ';
+});
+document.getElementById('toggleLegend').addEventListener('click', function() {
+  const el = document.querySelector('.legend');
+  el.classList.toggle('hidden');
+  this.textContent = el.classList.contains('hidden') ? '🎨' : '▲';
+});
 
 // 住所検索（国土地理院ジオコーダ）
 async function searchAddress() {
