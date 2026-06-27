@@ -108,6 +108,38 @@ select:hover { border-color:#ff3b4e; color:#fff; }
 #toggleLegend { bottom:28px; right:10px; }
 
 @media (max-width: 600px) {
+  /* ヘッダーをコンパクトに */
+  header {
+    padding:8px 10px;
+    gap:6px;
+    flex-wrap:nowrap;
+    align-items:center;
+  }
+  .logo {
+    font-size:11px;
+    letter-spacing:.08em;
+  }
+  /* フィルターを非表示（スマホでは地図優先） */
+  .filters { display:none; }
+  /* 件数表示を小さく */
+  .stats { margin-left:auto; }
+  .stat-v { font-size:16px; }
+  .stat-l { font-size:9px; }
+  /* 住所検索を1行に収める */
+  .search-box {
+    flex:1;
+    padding:3px 8px;
+  }
+  .search-box input {
+    width:100%;
+    font-size:13px;
+  }
+  .search-box button {
+    font-size:12px;
+    padding:3px 8px;
+  }
+
+  /* パネル折りたたみ */
   .panel-toggle { display:flex; }
   .info, .legend {
     transition: opacity .2s, transform .2s;
